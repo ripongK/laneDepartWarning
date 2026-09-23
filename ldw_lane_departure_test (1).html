@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบเตือนเมื่อรถออกนอกเลน — แบบฝึกเทียบเคียง PISA 2025 (LDW)</title>
+<style>
+  :root{
+    --bg:#0E1620;
+    --surface:#16202B;
+    --surface2:#1E2A38;
+    --surface3:#243343;
+    --line:#2A3A4A;
+    --amber:#FFB020;
+    --amber-dim:#8A6420;
+    --amber-soft:#3A2E14;
+    --green:#35C285;
+    --green-soft:#12301F;
+    --red:#E5573F;
+    --red-soft:#3A1B15;
+    --text:#EAF0F5;
+    --muted:#93A5B7;
+    --muted-dim:#5E7185;
+    --radius:14px;
+    --radius-sm:8px;
+    font-size:21px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% -10%, #1c2b3c 0%, transparent 45%),
+      radial-gradient(circle at 100% 0%, #182432 0%, transparent 40%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Segoe UI','Sarabun','Noto Sans Thai','TH Sarabun New',Tahoma,sans-serif;
+    min-height:100vh;
+    line-height:1.55;
+  }
+  #app{max-width:920px;margin:0 auto;padding:0 18px 60px;}
+  a{color:var(--amber);}
+
+  /* ---------- top status bar ---------- */
+  .statusbar{
+    position:sticky;top:0;z-index:50;
+    background:rgba(14,22,32,0.94);
+    backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);
+    padding:10px 0 14px;
+    margin-bottom:26px;
+  }
+  .statusbar-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-top:10px;}
+  .identity{display:flex;align-items:center;gap:10px;}
+  .identity-badge{
+    width:38px;height:38px;border-radius:50%;
+    background:var(--surface3);border:1px solid var(--amber-dim);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;color:var(--amber);flex-shrink:0;
+  }
+  .identity-name{font-weight:600;font-size:0.95rem;}
+  .identity-grade{font-size:0.78rem;color:var(--muted);}
+  .timerbox{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--line);padding:7px 14px;border-radius:999px;}
+  .timerbox .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite;}
+  .timerbox.warn .dot{background:var(--red);}
+  .timerbox .t{font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:0.5px;}
+  .timerbox.warn .t{color:var(--red);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.25;}}
+
+  /* ---------- lane stepper ---------- */
+  .lanewrap{margin-top:14px;position:relative;height:34px;}
+  .laneline{
+    position:absolute;top:16px;left:0;right:0;height:2px;
+    background-image:repeating-linear-gradient(to right, var(--muted-dim) 0 14px, transparent 14px 26px);
+  }
+  .lanesteps{position:relative;display:flex;justify-content:space-between;}
+  .lanestep{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--bg);padding:0 6px;position:relative;z-index:2;}
+  .lanestep .pip{width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--muted-dim);}
+  .lanestep.done .pip{background:var(--green);border-color:var(--green);}
+  .lanestep.active .pip{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 5px var(--amber-soft);}
+  .lanestep .lbl{font-size:0.72rem;color:var(--muted);letter-spacing:0.3px;}
+  .lanestep.active .lbl{color:var(--amber);font-weight:700;}
+  .lanestep.done .lbl{color:var(--green);}
+
+  /* ---------- layout blocks ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:26px 26px 24px;margin-bottom:20px;}
+  .eyebrow{color:var(--amber);font-size:0.8rem;font-weight:700;margin:0 0 6px;}
+  h1{font-size:1.7rem;margin:0 0 10px;font-weight:700;}
+  h2{font-size:1.28rem;margin:0 0 12px;font-weight:700;}
+  h3{font-size:1.05rem;margin:0 0 8px;font-weight:700;color:var(--text);}
+  p{color:#CBD8E4;margin:0 0 12px;}
+  .muted{color:var(--muted);}
+  .hero{
+    background:radial-gradient(1100px 400px at 15% -10%, rgba(255,176,32,0.14), transparent),
+               linear-gradient(160deg, #182636 0%, #0D141C 100%);
+    color:#EAF0F5; border-radius:16px; padding:34px 30px; position:relative; overflow:hidden;
+    margin-bottom:22px; border:1px solid var(--line);
+    display:grid; grid-template-columns:1.15fr 0.85fr; gap:26px; align-items:center;
+  }
+  @media (max-width:820px){ .hero{grid-template-columns:1fr;} .hero-art{order:-1; max-width:260px; margin:0 auto;} }
+  .hero h1{max-width:20ch;}
+  .hero p{color:#C7D3DF;}
+  .intro-badges{display:flex; gap:9px; flex-wrap:wrap; margin:16px 0 4px;}
+  .badge{background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14);
+    padding:7px 12px; border-radius:10px; font-size:0.72rem; color:#DCE4EC;}
+  .hero-art{position:relative;}
+  .hero-art svg{width:100%; height:auto; display:block;}
+  .spark{position:absolute; border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, rgba(255,214,140,0.9), rgba(255,176,32,0.04) 70%);
+    opacity:0.55; animation:rise 7s ease-in-out infinite;}
+  @keyframes rise{0%{transform:translateY(0) scale(1);opacity:0.15;}50%{opacity:0.6;}100%{transform:translateY(-26px) scale(1.08);opacity:0.1;}}
+  @media (prefers-reduced-motion:reduce){ .spark{animation:none;} }
+  @keyframes warnPulse{0%,100%{opacity:1;}50%{opacity:0.45;}}
+  .warn-pulse{animation:warnPulse 1.8s ease-in-out infinite;}
+
+  label{display:block;font-size:0.85rem;color:var(--muted);margin-bottom:6px;font-weight:600;}
+  input[type=text], select, input[type=number], textarea{
+    width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);
+    padding:11px 13px;border-radius:var(--radius-sm);font-size:0.95rem;font-family:inherit;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  input[type=range]{width:100%;accent-color:var(--amber);}
+  .field{margin-bottom:16px;}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
+  button{
+    font-family:inherit;font-size:0.92rem;font-weight:700;cursor:pointer;
+    border-radius:999px;padding:11px 22px;border:1px solid transparent;
+    transition:transform .12s ease, filter .12s ease;
+  }
+  button:active{transform:scale(0.97);}
+  .btn-primary{background:var(--amber);color:#1a1200;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:disabled{background:var(--surface3);color:var(--muted-dim);cursor:not-allowed;}
+  .btn-ghost{background:transparent;color:var(--text);border-color:var(--line);}
+  .btn-ghost:hover{border-color:var(--muted);}
+  .btn-sm{padding:7px 14px;font-size:0.8rem;}
+
+  .choice{
+    display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid var(--line);
+    border-radius:var(--radius-sm);margin-bottom:9px;cursor:pointer;background:var(--surface2);
+  }
+  .choice:hover{border-color:var(--muted-dim);}
+  .choice.selected{border-color:var(--amber);background:var(--amber-soft);}
+  .choice input{margin-top:3px;accent-color:var(--amber);}
+  .qnum{display:inline-block;background:var(--surface3);color:var(--amber);font-weight:700;font-size:0.75rem;padding:3px 9px;border-radius:6px;margin-bottom:10px;}
+
+  .tag{display:inline-block;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:999px;margin-right:6px;}
+  .tag-sun{background:#3a3312;color:#F4D35E;}
+  .tag-rain{background:#122a3a;color:#6EC3F4;}
+  .tag-faded{background:#302030;color:#D9A0E0;}
+
+  .condrow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface2);margin-bottom:10px;}
+  .condrow .roadmini{width:120px;height:34px;border-radius:6px;position:relative;background:#1b1f24;overflow:hidden;flex-shrink:0;}
+  .roadmini .lm{position:absolute;top:50%;left:0;right:0;height:3px;transform:translateY(-50%);background-image:repeating-linear-gradient(to right, #ffffff 0 10px, transparent 10px 20px);}
+  .roadmini.sun .lm{opacity:1;}
+  .roadmini.rain .lm{opacity:0.55;filter:blur(0.6px);}
+  .roadmini.rain::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(115deg, rgba(110,195,244,0.12) 0 2px, transparent 2px 9px);}
+  .roadmini.faded .lm{opacity:0.22;}
+  .result-pill{font-size:0.75rem;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap;}
+  .pill-pass{background:var(--green-soft);color:var(--green);}
+  .pill-fail{background:var(--red-soft);color:var(--red);}
+  .pill-idle{background:var(--surface3);color:var(--muted);}
+
+  table{width:100%;border-collapse:collapse;font-size:0.88rem;margin:14px 0;}
+  th,td{text-align:center;padding:9px 6px;border-bottom:1px solid var(--line);}
+  th{color:var(--muted);font-weight:700;font-size:0.76rem;text-transform:none;}
+  tr:hover td{background:rgba(255,255,255,0.02);}
+  .ok{color:var(--green);font-weight:700;}
+  .bad{color:var(--red);font-weight:700;}
+
+  .paramgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:640px){.paramgrid{grid-template-columns:1fr;}}
+  .metric{background:var(--surface2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;text-align:center;}
+  .metric .num{font-size:1.6rem;font-weight:800;color:var(--amber);}
+  .metric .lbl{font-size:0.76rem;color:var(--muted);margin-top:3px;}
+
+  .barrow{margin-bottom:16px;}
+  .barrow .toprow{display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;}
+  .bartrack{height:12px;background:var(--surface2);border-radius:999px;overflow:hidden;}
+  .barfill{height:100%;border-radius:999px;background:linear-gradient(90deg,#FFB020,#FF8A3D);}
+
+  .levelbadge{
+    display:inline-flex;align-items:center;gap:10px;padding:16px 22px;border-radius:var(--radius);
+    border:1px solid var(--amber-dim);background:var(--amber-soft);margin:6px 0 18px;
+  }
+  .levelbadge .lv{font-size:2rem;font-weight:800;color:var(--amber);}
+  .likert{display:flex;gap:8px;margin-top:6px;}
+  .likert button{flex:1;background:var(--surface2);color:var(--text);border:1px solid var(--line);padding:10px 6px;font-size:0.8rem;}
+  .likert button.sel{background:var(--amber);color:#1a1200;border-color:var(--amber);}
+
+  .footer-nav{display:flex;justify-content:space-between;margin-top:8px;}
+  .small{font-size:0.82rem;color:var(--muted);}
+  .divider{height:1px;background:var(--line);margin:20px 0;}
+  .historytable{overflow-x:auto;}
+  code{background:var(--surface3);padding:2px 6px;border-radius:5px;font-size:0.85em;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   หน่วยข้อสอบ: "ระบบเตือนเมื่อรถออกนอกเลน" (Lane Departure Warning)
+   แบบฝึกเทียบเคียงลักษณะข้อสอบ PISA 2025: Learning in the Digital World
+   โครงสร้าง: Show -> Learn (3 ภาระงาน) -> Apply -> Reflect
+   ============================================================ */
+
+const TOTAL_SECONDS = 30 * 60;
+const STORAGE_PREFIX = "ldw_lanedeparture_record:";
+const CONFIG_KEY = "ldw_config:webhook_url";
+const DEFAULT_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby-EQrWXlKE8-zo7JK1DAwytJ5F5Jb8NtbHfo1OmoNwnzVnsWYiFOhtNKM0x_xGEmCg/exec";
+
+const state = {
+  screen: "login",
+  user: "",
+  grade: "",
+  showSettings: false,
+  config: { webhookUrl: "", draft: "", status: "" },
+  timerId: null,
+  remaining: TOTAL_SECONDS,
+  finished: false,
+  show: { a1:null, a2:[], a3:null, a4:null, conf:null },
+  learn: {
+    t1: { threshold:50, tested:{sun:false,rain:false,faded:false}, results:{}, explain:"", locked:false },
+    t2: { comparator:"<", value:0.4, explain:"" },
+    t3: { fn:"", fp:"", acc:"", worst:null }
+  },
+  apply: { sens:50, dist:0.5, delay:1.5, ran:false, results:null, tradeoff:"" },
+  reflect: { understand:null, confidence:null, difficulty:null, strategy:"", more:"" },
+  scores: { show:0, learn:0, learn1:0, learn2:0, learn3:0, apply:0, reflect:0, overall:0, level:1 }
+};
+
+/* ---------------- utility ---------------- */
+function el(html){ const d=document.createElement("div"); d.innerHTML=html.trim(); return d.firstElementChild; }
+function fmtTime(s){ const m=Math.floor(s/60); const sec=s%60; return String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0"); }
+function initials(name){ return (name||"?").trim().slice(0,1).toUpperCase(); }
+function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
+
+function startTimer(){
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(()=>{
+    if(state.finished){ clearInterval(state.timerId); return; }
+    state.remaining--;
+    if(state.remaining<=0){
+      state.remaining=0;
+      clearInterval(state.timerId);
+      finishTest(true);
+      return;
+    }
+    const t = document.getElementById("timerText");
+    const box = document.getElementById("timerBox");
+    if(t) t.textContent = fmtTime(state.remaining);
+    if(box) box.classList.toggle("warn", state.remaining<300);
+  },1000);
+}
+
+/* ---------------- navigation ---------------- */
+function goto(screen){ state.screen = screen; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+
+const PHASES = [
+  {key:"show", label:"SHOW"},
+  {key:"learn", label:"LEARN"},
+  {key:"apply", label:"APPLY"},
+  {key:"reflect", label:"REFLECT"},
+];
+function phaseIndexFor(screen){
+  if(screen==="show") return 0;
+  if(screen.startsWith("learn")) return 1;
+  if(screen==="apply") return 2;
+  if(screen==="reflect") return 3;
+  return -1;
+}
+
+/* ---------------- SHOW scoring ---------------- */
+function scoreShow(){
+  let s=0;
+  if(state.show.a1==="b") s+=25;
+  const a2ok = state.show.a2.includes("weather") && state.show.a2.includes("faded") && !state.show.a2.includes("color");
+  if(a2ok) s+=25;
+  if(state.show.a3==="c") s+=25;
+  if(state.show.a4==="a") s+=25;
+  state.scores.show = s;
+  return s;
+}
+
+/* ---------------- LEARN Task 1 ---------------- */
+const T1_RANGES = { sun:[20,95], rain:[55,80], faded:[68,88] };
+function t1Test(cond){
+  const v = state.learn.t1.threshold;
+  const [lo,hi] = T1_RANGES[cond];
+  const pass = v>=lo && v<=hi;
+  state.learn.t1.tested[cond]=true;
+  state.learn.t1.results[cond]=pass;
+  render();
+}
+function scoreLearn1(){
+  const r = state.learn.t1.results;
+  const passCount = ["sun","rain","faded"].filter(c=>r[c]===true).length;
+  const explainOk = state.learn.t1.explain.trim().length>=15;
+  const s = Math.round((passCount/3)*70) + (explainOk?30:0);
+  state.scores.learn1 = s;
+  return s;
+}
+
+/* ---------------- LEARN Task 2 ---------------- */
+const T2_CASES = [
+  {distance:0.15, signalOn:false, expected:true},
+  {distance:0.45, signalOn:false, expected:false},
+  {distance:0.10, signalOn:true,  expected:false},
+  {distance:0.35, signalOn:false, expected:true},
+  {distance:0.60, signalOn:false, expected:false},
+  {distance:0.20, signalOn:false, expected:true},
+];
+function t2Predict(c){
+  const v = state.learn.t2.value;
+  const cmp = state.learn.t2.comparator;
+  const distCond = cmp==="<" ? c.distance < v : c.distance <= v;
+  return distCond && !c.signalOn;
+}
+function t2Accuracy(){
+  let correct=0;
+  T2_CASES.forEach(c=>{ if(t2Predict(c)===c.expected) correct++; });
+  return correct;
+}
+function scoreLearn2(){
+  const correct = t2Accuracy();
+  const s = Math.round((correct/T2_CASES.length)*100);
+  state.scores.learn2 = s;
+  return s;
+}
+
+/* ---------------- LEARN Task 3 ---------------- */
+const T3_DATA = [
+  {no:1, speed:60,  cond:"ปกติ",   detected:true,  actual:true},
+  {no:2, speed:90,  cond:"ฝนตก",   detected:false, actual:true},
+  {no:3, speed:45,  cond:"ปกติ",   detected:true,  actual:true},
+  {no:4, speed:100, cond:"กลางคืน",detected:false, actual:true},
+  {no:5, speed:70,  cond:"ปกติ",   detected:false, actual:false},
+  {no:6, speed:80,  cond:"ฝนตก",   detected:true,  actual:false},
+  {no:7, speed:55,  cond:"กลางคืน",detected:true,  actual:true},
+  {no:8, speed:95,  cond:"ฝนตก",   detected:false, actual:true},
+  {no:9, speed:65,  cond:"ปกติ",   detected:true,  actual:true},
+  {no:10,speed:110, cond:"กลางคืน",detected:false, actual:false},
+];
+function scoreLearn3(){
+  let s=0;
+  if(parseInt(state.learn.t3.fn)===3) s+=25;
+  if(parseInt(state.learn.t3.fp)===1) s+=25;
+  const accNum = parseInt(String(state.learn.t3.acc).replace("%",""));
+  if(accNum===60) s+=25;
+  if(state.learn.t3.worst==="ฝนตก") s+=25;
+  state.scores.learn3 = s;
+  return s;
+}
+
+function scoreLearnOverall(){
+  const s = Math.round((scoreLearn1()+scoreLearn2()+scoreLearn3())/3);
+  state.scores.learn = s;
+  return s;
+}
+
+/* ---------------- APPLY ---------------- */
+const APPLY_SCENARIOS = [
+  {name:"ถนนตรง กลางวัน",            reqSens:50, reqDist:0.50, reqDelay:2.0},
+  {name:"ถนนตรง ฝนตก",              reqSens:65, reqDist:0.40, reqDelay:1.5},
+  {name:"ทางโค้ง กลางวัน",          reqSens:60, reqDist:0.35, reqDelay:1.2},
+  {name:"ทางโค้ง กลางคืน",          reqSens:75, reqDist:0.30, reqDelay:1.0},
+  {name:"ทางโค้ง ฝนตก กลางคืน",     reqSens:85, reqDist:0.25, reqDelay:0.8},
+  {name:"ถนนตรง กลางคืน",           reqSens:70, reqDist:0.40, reqDelay:1.3},
+  {name:"ทางโค้ง ฝนตก กลางวัน",     reqSens:78, reqDist:0.30, reqDelay:1.0},
+  {name:"ถนนตรง ฝนตก กลางคืน",      reqSens:80, reqDist:0.30, reqDelay:0.9},
+];
+function runApply(){
+  const {sens,dist,delay} = state.apply;
+  const rows = APPLY_SCENARIOS.map(sc=>{
+    const pass = sens>=sc.reqSens && dist<=sc.reqDist && delay<=sc.reqDelay;
+    return {...sc, pass};
+  });
+  const passCount = rows.filter(r=>r.pass).length;
+  const accuracy = Math.round((passCount/rows.length)*100);
+  const nuisance = Math.max(0, Math.round((sens-90)*0.6 + (0.5-delay>0?(0.5-delay)*10:0)));
+  state.apply.results = {rows, accuracy, nuisance};
+  state.apply.ran = true;
+  render();
+}
+function scoreApply(){
+  if(!state.apply.results){ state.scores.apply=0; return 0; }
+  const accPart = Math.round(state.apply.results.accuracy*0.7);
+  const explainOk = state.apply.tradeoff.trim().length>=20;
+  const s = accPart + (explainOk?30:0);
+  state.scores.apply = Math.min(100,s);
+  return state.scores.apply;
+}
+
+/* ---------------- REFLECT ---------------- */
+function scoreReflect(){
+  let filled=0, total=4;
+  if(state.reflect.understand) filled++;
+  if(state.reflect.confidence) filled++;
+  if(state.reflect.difficulty) filled++;
+  if(state.reflect.strategy.trim().length>=5) filled++;
+  state.scores.reflect = Math.round((filled/total)*100);
+  return state.scores.reflect;
+}
+
+/* ---------------- overall ---------------- */
+function computeLevel(overall){
+  if(overall>=85) return {n:4, name:"ผู้เรียนรู้ขั้นสูงในโลกดิจิทัล", en:"Advanced Digital Learner"};
+  if(overall>=70) return {n:3, name:"ผู้เรียนรู้ที่ชำนาญ", en:"Proficient Digital Learner"};
+  if(overall>=50) return {n:2, name:"ผู้เรียนรู้ที่กำลังพัฒนา", en:"Developing Digital Learner"};
+  return {n:1, name:"ผู้เรียนรู้เริ่มต้น", en:"Emerging Digital Learner"};
+}
+
+async function finishTest(timedOut){
+  state.finished = true;
+  if(state.timerId) clearInterval(state.timerId);
+  scoreShow();
+  scoreLearnOverall();
+  scoreApply();
+  scoreReflect();
+  const overall = Math.round(
+    state.scores.show*0.15 + state.scores.learn*0.40 + state.scores.apply*0.35 + state.scores.reflect*0.10
+  );
+  state.scores.overall = overall;
+  const lvl = computeLevel(overall);
+  state.scores.level = lvl.n;
+  state.scores.levelName = lvl.name;
+  state.scores.levelEn = lvl.en;
+
+  const record = {
+    sheet: "Sheet1",
+    timestamp: new Date().toISOString(),
+    scenario: "Lane Departure Warning",
+    user: state.user,
+    grade: state.grade,
+    show: state.scores.show,
+    learn: state.scores.learn,
+    learn_detail: {task1:state.scores.learn1, task2:state.scores.learn2, task3:state.scores.learn3},
+    apply: state.scores.apply,
+    reflect: state.scores.reflect,
+    overall: state.scores.overall,
+    level: state.scores.level,
+    levelName: state.scores.levelName,
+    timedOut: !!timedOut
+  };
+  try{
+    const key = STORAGE_PREFIX + Date.now() + "_" + (state.user||"user").replace(/\s+/g,"_");
+    await window.storage.set(key, JSON.stringify(record), true);
+  }catch(e){ console.error("บันทึกข้อมูลไม่สำเร็จ", e); }
+
+  await sendToSheet(record);
+
+  goto("report");
+}
+
+/* ---------------- Google Sheet webhook (Apps Script) ---------------- */
+async function loadConfig(){
+  try{
+    const cfg = await window.storage.get(CONFIG_KEY, true);
+    if(cfg && cfg.value){
+      state.config.webhookUrl = cfg.value;
+      state.config.draft = cfg.value;
+    }else{
+      // ยังไม่เคยมีการตั้งค่ามาก่อน ใช้ URL เริ่มต้นที่กำหนดไว้ และบันทึกเก็บไว้ทันที
+      state.config.webhookUrl = DEFAULT_WEBHOOK_URL;
+      state.config.draft = DEFAULT_WEBHOOK_URL;
+      await window.storage.set(CONFIG_KEY, DEFAULT_WEBHOOK_URL, true);
+    }
+  }catch(e){
+    state.config.webhookUrl = DEFAULT_WEBHOOK_URL;
+    state.config.draft = DEFAULT_WEBHOOK_URL;
+  }
+}
+
+async function saveConfig(url){
+  state.config.status = "กำลังบันทึก...";
+  render();
+  try{
+    await window.storage.set(CONFIG_KEY, url, true);
+    state.config.webhookUrl = url;
+    state.config.status = url ? "บันทึก URL เรียบร้อยแล้ว นักเรียนทุกคนที่ใช้แบบฝึกนี้จะส่งผลไปยัง Google Sheet เดียวกัน" : "ลบการเชื่อมต่อแล้ว";
+  }catch(e){
+    state.config.status = "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง";
+  }
+  render();
+}
+
+async function sendToSheet(record){
+  const url = state.config.webhookUrl;
+  if(!url) return; // ยังไม่ได้ตั้งค่า Apps Script Web App URL
+  try{
+    // ใช้ text/plain + no-cors เพื่อเลี่ยงปัญหา CORS preflight กับ Apps Script Web App
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(record)
+    });
+  }catch(e){
+    console.error("ส่งข้อมูลไปยัง Google Sheet ไม่สำเร็จ", e);
+  }
+}
+
+async function testWebhook(){
+  state.config.status = "กำลังส่งข้อมูลทดสอบ...";
+  render();
+  const sample = {
+    sheet: "Sheet1",
+    timestamp: new Date().toISOString(),
+    scenario: "Lane Departure Warning",
+    user: "ทดสอบระบบ", grade: "ทดสอบ",
+    show: 100, learn: 100, learn_detail:{task1:100,task2:100,task3:100},
+    apply: 100, reflect: 100, overall: 100, level: 4, levelName: "ทดสอบการเชื่อมต่อ", timedOut:false
+  };
+  await sendToSheet(sample);
+  state.config.status = "ส่งข้อมูลทดสอบแล้ว กรุณาตรวจสอบแถวใหม่ใน Google Sheet ของคุณ";
+  render();
+}
+
+/* ============================================================
+   RENDER FUNCTIONS
+   ============================================================ */
+function render(){
+  const app = document.getElementById("app");
+  let html = "";
+  const needsBar = ["show","learn1","learn2","learn3","apply","reflect"].includes(state.screen);
+
+  if(needsBar) html += renderStatusBar();
+
+  switch(state.screen){
+    case "login": html += renderLogin(); break;
+    case "show": html += renderShow(); break;
+    case "learn1": html += renderLearn1(); break;
+    case "learn2": html += renderLearn2(); break;
+    case "learn3": html += renderLearn3(); break;
+    case "apply": html += renderApply(); break;
+    case "reflect": html += renderReflect(); break;
+    case "report": html += renderReport(); break;
+    case "history": html += renderHistory(); break;
+  }
+  app.innerHTML = html;
+  attachHandlers();
+}
+
+function renderStatusBar(){
+  const idx = phaseIndexFor(state.screen);
+  return `
+  <div class="statusbar">
+    <div class="statusbar-row">
+      <div class="identity">
+        <div class="identity-badge">${initials(state.user)}</div>
+        <div>
+          <div class="identity-name">${state.user||"ผู้เข้าสอบ"}</div>
+          <div class="identity-grade">ระดับชั้น: ${state.grade||"-"}</div>
+        </div>
+      </div>
+      <div class="timerbox" id="timerBox">
+        <span class="dot"></span>
+        <span class="small">เวลาคงเหลือ</span>
+        <span class="t" id="timerText">${fmtTime(state.remaining)}</span>
+      </div>
+    </div>
+    <div class="lanewrap">
+      <div class="laneline"></div>
+      <div class="lanesteps">
+        ${PHASES.map((p,i)=>`
+          <div class="lanestep ${i<idx?"done":i===idx?"active":""}">
+            <div class="pip"></div>
+            <div class="lbl">${p.label}</div>
+          </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLogin(){
+  return `
+  <div class="hero">
+    <div class="hero-copy">
+      <div class="eyebrow">แบบฝึกเทียบเคียง PISA 2025 : Learning in the Digital World (LDW)</div>
+      <h1>ระบบเตือนเมื่อรถออกนอกเลน<br>Lane Departure Warning</h1>
+      <p style="max-width:560px">รถยนต์รุ่นใหม่ใช้กล้องตรวจจับเส้นแบ่งช่องจราจร คำนวณตำแหน่งรถเทียบกับเลน แล้วแจ้งเตือนผู้ขับเมื่อรถเคลื่อนออกนอกเลนโดยไม่ได้เปิดไฟเลี้ยว — แต่ระบบนี้ไม่ได้ทำงานถูกต้องเสมอไป ภารกิจของคุณคือสั่งงานตัวแทนจำลอง สร้างแบบจำลองของระบบ และวิเคราะห์ข้อมูลจำลอง เพื่อทำความเข้าใจว่าทำไม</p>
+      <div class="intro-badges">
+        <div class="badge">1 · แสดงสิ่งที่รู้ (Show) — 4 ข้อ</div>
+        <div class="badge">2 · เรียนรู้ (Learn) — 3 ภาระงาน</div>
+        <div class="badge">3 · ประยุกต์ใช้ (Apply)</div>
+        <div class="badge">4 · ประเมินตนเอง (Reflect)</div>
+      </div>
+    </div>
+    <div class="hero-art">
+      <svg viewBox="0 0 320 300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#1B2A3C"/>
+            <stop offset="1" stop-color="#0D141C"/>
+          </linearGradient>
+          <radialGradient id="warnGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#FFB020" stop-opacity="0.55"/>
+            <stop offset="1" stop-color="#FFB020" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="beamGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#FFE9B8" stop-opacity="0.5"/>
+            <stop offset="1" stop-color="#FFE9B8" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="320" height="300" rx="18" fill="url(#skyGrad)"/>
+        <circle cx="255" cy="45" r="1.6" fill="#EAF0F5" opacity="0.5"/>
+        <circle cx="70" cy="30" r="1.2" fill="#EAF0F5" opacity="0.4"/>
+        <circle cx="200" cy="20" r="1.4" fill="#EAF0F5" opacity="0.45"/>
+        <circle cx="30" cy="60" r="1.1" fill="#EAF0F5" opacity="0.35"/>
+        <path d="M0 300 L120 150 L200 150 L320 300 Z" fill="#171B21"/>
+        <path d="M140 150 L120 300 M180 150 L200 300" stroke="#3a4249" stroke-width="2"/>
+        <g stroke="#FFB020" stroke-width="4" stroke-linecap="round" opacity="0.9">
+          <line x1="160" y1="285" x2="160" y2="250"/>
+          <line x1="160" y1="222" x2="160" y2="195"/>
+          <line x1="160" y1="172" x2="160" y2="155"/>
+        </g>
+        <circle cx="205" cy="120" r="34" fill="url(#warnGlow)"/>
+        <g transform="translate(205,120)" class="warn-pulse">
+          <path d="M0 -19 L18 15 H-18 Z" fill="#FFB020"/>
+          <rect x="-2.2" y="-8" width="4.4" height="13" rx="2" fill="#1B1F24"/>
+          <circle cx="0" cy="9" r="2.4" fill="#1B1F24"/>
+        </g>
+        <g transform="translate(150,205)">
+          <path d="M-58 6 L-46 6 C-40 6 -34 -8 -20 -8 L20 -8 C34 -8 40 6 46 6 L58 6 L58 22 C58 26 55 29 51 29 H-51 C-55 29 -58 26 -58 22 Z" fill="#3A4A5A"/>
+          <path d="M-46 6 C-40 6 -34 -8 -20 -8 L20 -8 C34 -8 40 6 46 6 Z" fill="#4A5D70"/>
+          <circle cx="-32" cy="29" r="9" fill="#171B21" stroke="#5a6b7a" stroke-width="2"/>
+          <circle cx="32" cy="29" r="9" fill="#171B21" stroke="#5a6b7a" stroke-width="2"/>
+          <ellipse cx="-52" cy="4" rx="5" ry="4" fill="#FFE9B8"/>
+          <ellipse cx="52" cy="4" rx="5" ry="4" fill="#FF6B4A"/>
+        </g>
+        <path d="M92 211 L20 190" stroke="url(#beamGrad)" stroke-width="16" stroke-linecap="round" opacity="0.7"/>
+        <path d="M92 219 L15 235" stroke="url(#beamGrad)" stroke-width="14" stroke-linecap="round" opacity="0.55"/>
+      </svg>
+      <div class="spark" style="width:12px;height:12px; left:20%; top:26%; animation-delay:0s;"></div>
+      <div class="spark" style="width:8px;height:8px; left:75%; top:62%; animation-delay:1.6s;"></div>
+      <div class="spark" style="width:10px;height:10px; left:60%; top:20%; animation-delay:2.8s;"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <h3>ก่อนเริ่ม</h3>
+    <p class="small" style="margin:0;">คุณจะได้ทดลองปรับความไวของกล้องตรวจจับเส้นเลน สร้างกฎการตัดสินใจ วิเคราะห์ข้อมูลการทดลองบินจำลอง และออกแบบระบบให้ทำงานได้แม่นยำในสภาพถนนที่ท้าทาย คำตอบระหว่างทำจะยังไม่เฉลยทันที แต่จะสรุปเป็นรายงานผลเมื่อทำครบทั้ง 4 ขั้นตอน</p>
+  </div>
+
+  <div class="card">
+    <h2>เริ่มทำแบบทดสอบ</h2>
+    <p class="small">ใช้เวลาทั้งหมด 30 นาที แบ่งเป็น 4 ขั้นตอน: แสดงสิ่งที่รู้ (Show) → เรียนรู้ (Learn) → ประยุกต์ใช้ (Apply) → ประเมินตนเอง (Reflect)</p>
+    <div class="field">
+      <label for="inpName">ชื่อผู้เข้าสอบ</label>
+      <input type="text" id="inpName" placeholder="พิมพ์ชื่อ-นามสกุล หรือชื่อเล่นของคุณ" value="${state.user}">
+    </div>
+    <div class="field">
+      <label for="inpGrade">ระดับชั้น</label>
+      <select id="inpGrade">
+        <option value="">-- เลือกระดับชั้น --</option>
+        ${["ชั้นมัธยมศึกษาปีที่ 2","ชั้นมัธยมศึกษาปีที่ 3","ชั้นมัธยมศึกษาปีที่ 4","ปวช."].map(g=>`<option value="${g}" ${state.grade===g?"selected":""}>${g}</option>`).join("")}
+      </select>
+    </div>
+    <div class="btnrow">
+      <button class="btn-primary" id="btnStart">เริ่มทำแบบทดสอบ</button>
+    </div>
+    <div id="loginError" class="small" style="color:var(--red);margin-top:10px;"></div>
+  </div>`;
+}
+
+function renderShow(){
+  const s = state.show;
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 1 · SHOW — แสดงสิ่งที่รู้</div>
+    <h2>ตรวจสอบความรู้พื้นฐานของคุณ</h2>
+    <p class="small">ตอบตามความเข้าใจก่อนหน้า ไม่มีการเตรียมตัวล่วงหน้าในขั้นตอนนี้ ใช้เวลาประมาณ 5 นาที</p>
+
+    <div class="qnum">ข้อ 1</div>
+    <p><b>ระบบ LDW ใช้ข้อมูลจากกล้องเพื่อคำนวณสิ่งใดเป็นหลัก?</b></p>
+    ${choiceGroup("show_a1","radio",[
+      ["a","ความเร็วของรถเทียบกับรถคันหน้า"],
+      ["b","ตำแหน่งของรถเทียบกับเส้นแบ่งช่องจราจร"],
+      ["c","ระดับน้ำมันเชื้อเพลิงที่เหลือ"],
+      ["d","อุณหภูมิของเครื่องยนต์"],
+    ], s.a1)}
+
+    <div class="divider"></div>
+    <div class="qnum">ข้อ 2</div>
+    <p><b>ปัจจัยใดบ้างที่อาจทำให้ระบบตรวจจับเส้นเลนผิดพลาด? (เลือกได้มากกว่า 1 ข้อ)</b></p>
+    ${choiceGroup("show_a2","checkbox",[
+      ["weather","สภาพอากาศ เช่น ฝนตก หมอกลง"],
+      ["faded","เส้นแบ่งช่องจราจรที่จางหรือลบเลือน"],
+      ["color","สีของตัวถังรถยนต์"],
+    ], s.a2)}
+
+    <div class="divider"></div>
+    <div class="qnum">ข้อ 3</div>
+    <p><b>กราฟด้านล่างแสดงระยะห่างของรถจากกึ่งกลางเลน (เมตร) ตามเวลา เส้นประคือขอบเขตที่ถือว่า "ออกนอกเลน" จุดใดคือช่วงที่ระบบควรแจ้งเตือน?</b></p>
+    ${renderMiniGraph(s.a3)}
+
+    <div class="divider"></div>
+    <div class="qnum">ข้อ 4</div>
+    <p><b>เงื่อนไขการแจ้งเตือนของระบบเขียนเป็นหลักเหตุผลอย่างง่ายได้ว่า "ถ้าระยะห่างจากเส้นน้อยกว่าค่าที่กำหนด และ ผู้ขับไม่ได้เปิดไฟเลี้ยว" จะเกิดผลลัพธ์ใด?</b></p>
+    ${choiceGroup("show_a4","radio",[
+      ["a","ระบบแจ้งเตือนผู้ขับ"],
+      ["b","ระบบเบรกรถโดยอัตโนมัติ"],
+      ["c","ระบบปิดตัวเองชั่วคราว"],
+      ["d","ไม่มีสิ่งใดเกิดขึ้น"],
+    ], s.a4)}
+
+    <div class="btnrow footer-nav">
+      <span></span>
+      <button class="btn-primary" id="btnToLearn">ไปยังขั้นตอน Learn</button>
+    </div>
+  </div>`;
+}
+
+function renderMiniGraph(selected){
+  // simple svg graph with 3 clickable points
+  const points = [
+    {id:"a", x:60,  y:60, label:"A"},
+    {id:"b", x:150, y:40, label:"B"},
+    {id:"c", x:240, y:95, label:"C"},
+  ];
+  return `
+  <svg viewBox="0 0 320 130" style="width:100%;max-width:420px;background:var(--surface2);border:1px solid var(--line);border-radius:var(--radius-sm);margin:10px 0;">
+    <line x1="10" y1="30" x2="10" y2="115" stroke="#3a4a5a" stroke-width="1"/>
+    <line x1="10" y1="115" x2="300" y2="115" stroke="#3a4a5a" stroke-width="1"/>
+    <line x1="10" y1="95" x2="300" y2="95" stroke="#E5573F" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="230" y="90" fill="#E5573F" font-size="8">ขอบเขตออกนอกเลน</text>
+    <polyline points="10,70 60,60 100,50 150,40 190,60 240,95 280,70" fill="none" stroke="#FFB020" stroke-width="2.4"/>
+    ${points.map(p=>`
+      <g class="graphpt" data-val="${p.id}" style="cursor:pointer;">
+        <circle cx="${p.x}" cy="${p.y}" r="9" fill="${selected===p.id?'#FFB020':'transparent'}" stroke="#FFB020" stroke-width="1.5"/>
+        <text x="${p.x}" y="${p.y+3}" text-anchor="middle" font-size="8" fill="${selected===p.id?'#1a1200':'#EAF0F5'}" font-weight="700">${p.label}</text>
+      </g>`).join("")}
+  </svg>
+  <p class="small">คลิกจุด A, B หรือ C บนกราฟเพื่อเลือกคำตอบ ${selected?`<b style="color:var(--amber)">(เลือกแล้ว: จุด ${selected.toUpperCase()})</b>`:""}</p>`;
+}
+
+function choiceGroup(name, type, options, current){
+  return `<div class="choicegroup" data-name="${name}" data-type="${type}">
+    ${options.map(([val,label])=>{
+      const checked = type==="checkbox" ? (current||[]).includes(val) : current===val;
+      return `<label class="choice ${checked?"selected":""}">
+        <input type="${type}" name="${name}" value="${val}" ${checked?"checked":""}>
+        <span>${label}</span>
+      </label>`;
+    }).join("")}
+  </div>`;
+}
+
+function renderLearn1(){
+  const t = state.learn.t1;
+  const conds = [
+    {key:"sun", tag:"tag-sun", label:"แดดจ้า เส้นเลนชัดเจน"},
+    {key:"rain", tag:"tag-rain", label:"ฝนตก เส้นเลนเปียกและสะท้อนแสง"},
+    {key:"faded", tag:"tag-faded", label:"เส้นเลนจางและลบเลือน"},
+  ];
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 2 · LEARN — ภาระงานที่ 1 จาก 3</div>
+    <h2>ปรับความไวของกล้องตรวจจับเส้นเลน</h2>
+    <p>ระบบใช้ "ค่าความไวในการตรวจจับเส้น" (threshold) ค่าเดียวกับทุกสภาพถนน ปรับตัวเลื่อนด้านล่าง แล้วกดทดสอบทีละสภาพ เพื่อหาค่าที่ทำให้กล้อง <b>ตรวจจับเส้นเลนได้ถูกต้องในทั้ง 3 สภาพพร้อมกัน</b></p>
+
+    <div class="field">
+      <label>ค่าความไวของกล้อง (threshold): <span style="color:var(--amber);font-weight:700">${t.threshold}</span></label>
+      <input type="range" id="t1slider" min="0" max="100" value="${t.threshold}">
+    </div>
+
+    ${conds.map(c=>{
+      const tested = t.tested[c.key];
+      const pass = t.results[c.key];
+      return `
+      <div class="condrow">
+        <div class="roadmini ${c.key}"><div class="lm"></div></div>
+        <div style="flex:1;">
+          <span class="tag ${c.tag}">${c.label}</span>
+        </div>
+        <span class="result-pill ${!tested?"pill-idle":pass?"pill-pass":"pill-fail"}">
+          ${!tested ? "ยังไม่ทดสอบ" : pass ? "ตรวจจับสำเร็จ" : "ตรวจจับพลาด"}
+        </span>
+        <button class="btn-ghost btn-sm" data-t1test="${c.key}">ทดสอบ</button>
+      </div>`;
+    }).join("")}
+
+    <div class="divider"></div>
+    <div class="field">
+      <label for="t1explain">อธิบายสั้น ๆ: เหตุใดค่าความไวเพียงค่าเดียวจึงอาจใช้ไม่ได้ผลดีในทุกสภาพอากาศ?</label>
+      <textarea id="t1explain" placeholder="พิมพ์คำอธิบายของคุณที่นี่...">${t.explain}</textarea>
+    </div>
+
+    <div class="btnrow footer-nav">
+      <button class="btn-ghost" id="btnBackShow">ย้อนกลับ</button>
+      <button class="btn-primary" id="btnToLearn2">ไปภาระงานถัดไป</button>
+    </div>
+  </div>`;
+}
+
+function renderLearn2(){
+  const t = state.learn.t2;
+  const rows = T2_CASES.map((c,i)=>{
+    const pred = t2Predict(c);
+    const correct = pred===c.expected;
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${c.distance.toFixed(2)} ม.</td>
+      <td>${c.signalOn?"เปิด":"ปิด"}</td>
+      <td>${c.expected? '<span class="ok">แจ้งเตือน</span>' : '<span class="muted">ไม่แจ้งเตือน</span>'}</td>
+      <td>${pred? '<span class="ok">แจ้งเตือน</span>' : '<span class="muted">ไม่แจ้งเตือน</span>'}</td>
+      <td>${correct? '<span class="ok">✓</span>' : '<span class="bad">✗</span>'}</td>
+    </tr>`;
+  }).join("");
+  const acc = t2Accuracy();
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 2 · LEARN — ภาระงานที่ 2 จาก 3</div>
+    <h2>สร้างกฎการตัดสินใจของระบบ</h2>
+    <p>กำหนดกฎ: <b>"ถ้า" ระยะห่างจากเส้น <select id="t2cmp" style="width:auto;display:inline-block;padding:4px 8px;">
+        <option value="<" ${t.comparator==="<"?"selected":""}>น้อยกว่า (&lt;)</option>
+        <option value="<=" ${t.comparator==="<="?"selected":""}>น้อยกว่าหรือเท่ากับ (≤)</option>
+      </select>
+      <input type="number" id="t2val" step="0.05" min="0" max="1" value="${t.value}" style="width:80px;display:inline-block;"> เมตร
+      <b>และ</b> ไม่ได้เปิดไฟเลี้ยว → <b>"แล้ว"</b> ระบบแจ้งเตือน</p>
+
+    <table>
+      <tr><th>เคส</th><th>ระยะห่างจากเส้น</th><th>ไฟเลี้ยว</th><th>ผลที่ควรเป็น</th><th>ผลจากกฎของคุณ</th><th>ถูกต้อง?</th></tr>
+      ${rows}
+    </table>
+    <div class="metric" style="max-width:220px;">
+      <div class="num">${acc} / ${T2_CASES.length}</div>
+      <div class="lbl">เคสที่ทำนายถูกต้อง</div>
+    </div>
+    <p class="small" style="margin-top:10px;">ปรับค่าตัวเลขและตัวเปรียบเทียบจนกว่าระบบจะทำนายถูกต้องให้ได้มากที่สุด</p>
+
+    <div class="btnrow footer-nav">
+      <button class="btn-ghost" id="btnBackL1">ย้อนกลับ</button>
+      <button class="btn-primary" id="btnToLearn3">ไปภาระงานถัดไป</button>
+    </div>
+  </div>`;
+}
+
+function renderLearn3(){
+  const t = state.learn.t3;
+  const rows = T3_DATA.map(r=>{
+    const fn = !r.detected && r.actual;
+    const fp = r.detected && !r.actual;
+    return `<tr>
+      <td>${r.no}</td><td>${r.speed}</td><td>${r.cond}</td>
+      <td>${r.detected? '<span class="ok">พบ</span>' : '<span class="muted">ไม่พบ</span>'}</td>
+      <td>${r.actual? '<span class="ok">ออกนอกเลนจริง</span>' : '<span class="muted">ไม่ออกนอกเลน</span>'}</td>
+      <td>${fn? '<span class="bad">ผลลบลวง</span>' : fp? '<span class="bad">ผลบวกลวง</span>' : '<span class="ok">ถูกต้อง</span>'}</td>
+    </tr>`;
+  }).join("");
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 2 · LEARN — ภาระงานที่ 3 จาก 3</div>
+    <h2>รวบรวมและวิเคราะห์ข้อมูลจำลอง</h2>
+    <p>ข้อมูลด้านล่างมาจากการทดลองขับรถจำลอง 10 ครั้ง วิเคราะห์ข้อมูลแล้วตอบคำถาม</p>
+    <div class="historytable">
+    <table>
+      <tr><th>ครั้งที่</th><th>ความเร็ว (กม./ชม.)</th><th>สภาพถนน</th><th>ระบบตรวจพบ</th><th>ความจริง</th><th>ผลการวิเคราะห์</th></tr>
+      ${rows}
+    </table>
+    </div>
+
+    <div class="paramgrid" style="margin-top:14px;">
+      <div class="field">
+        <label>จำนวนครั้งที่เกิด "ผลลบลวง" (ระบบไม่แจ้งเตือน แต่รถออกนอกเลนจริง)</label>
+        <input type="number" id="t3fn" value="${t.fn}" min="0" max="10">
+      </div>
+      <div class="field">
+        <label>จำนวนครั้งที่เกิด "ผลบวกลวง" (ระบบแจ้งเตือน แต่รถไม่ได้ออกนอกเลน)</label>
+        <input type="number" id="t3fp" value="${t.fp}" min="0" max="10">
+      </div>
+      <div class="field">
+        <label>ความแม่นยำโดยรวมของระบบ (%)</label>
+        <input type="number" id="t3acc" value="${t.acc}" min="0" max="100">
+      </div>
+      <div class="field">
+        <label>สภาพถนนใดที่ระบบมีความผิดพลาดมากที่สุด?</label>
+        <select id="t3worst">
+          <option value="">-- เลือกคำตอบ --</option>
+          ${["ปกติ","ฝนตก","กลางคืน"].map(o=>`<option value="${o}" ${t.worst===o?"selected":""}>${o}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div class="btnrow footer-nav">
+      <button class="btn-ghost" id="btnBackL2">ย้อนกลับ</button>
+      <button class="btn-primary" id="btnToApply">ไปยังขั้นตอน Apply</button>
+    </div>
+  </div>`;
+}
+
+function renderApply(){
+  const a = state.apply;
+  const res = a.results;
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 3 · APPLY — ประยุกต์ใช้</div>
+    <h2>ออกแบบระบบ LDW สำหรับสภาพถนนที่ท้าทาย</h2>
+    <p>นำความเข้าใจจากขั้นตอน Learn มาตั้งค่าพารามิเตอร์ทั้ง 3 ของระบบ แล้วทดสอบกับสถานการณ์จำลอง 8 แบบ ที่รวมทางโค้ง เวลากลางคืน และฝนตก เป้าหมายคือให้ระบบแจ้งเตือนได้แม่นยำ โดยไม่แจ้งเตือนบ่อยเกินความจำเป็น</p>
+
+    <div class="paramgrid">
+      <div class="field">
+        <label>ความไวของกล้อง (0-100): <span style="color:var(--amber);font-weight:700">${a.sens}</span></label>
+        <input type="range" id="applySens" min="0" max="100" value="${a.sens}">
+      </div>
+      <div class="field">
+        <label>ระยะห่างจากเส้นที่เริ่มแจ้งเตือน (เมตร): <span style="color:var(--amber);font-weight:700">${a.dist.toFixed(2)}</span></label>
+        <input type="range" id="applyDist" min="0.1" max="0.7" step="0.05" value="${a.dist}">
+      </div>
+      <div class="field">
+        <label>เวลาหน่วงก่อนแจ้งเตือน (วินาที): <span style="color:var(--amber);font-weight:700">${a.delay.toFixed(1)}</span></label>
+        <input type="range" id="applyDelay" min="0.2" max="3" step="0.1" value="${a.delay}">
+      </div>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn-primary" id="btnRunApply">ทดสอบกับสถานการณ์จำลอง</button>
+    </div>
+
+    ${res ? `
+      <div class="divider"></div>
+      <div class="paramgrid">
+        <div class="metric"><div class="num">${res.accuracy}%</div><div class="lbl">ความแม่นยำโดยรวม (8 สถานการณ์)</div></div>
+        <div class="metric"><div class="num">${res.nuisance}</div><div class="lbl">การแจ้งเตือนที่ไม่จำเป็น (โดยประมาณ)</div></div>
+      </div>
+      <div class="historytable">
+      <table>
+        <tr><th>สถานการณ์</th><th>ผลลัพธ์</th></tr>
+        ${res.rows.map(r=>`<tr><td style="text-align:left;">${r.name}</td><td>${r.pass?'<span class="ok">ผ่าน</span>':'<span class="bad">ไม่ผ่าน</span>'}</td></tr>`).join("")}
+      </table>
+      </div>
+      <div class="field">
+        <label for="tradeoff">วิเคราะห์: เหตุใดการตั้งค่าให้ไวเกินไป (ลดผลบวกลวง) อาจเพิ่มความเสี่ยงจากผลลบลวง หรือในทางกลับกัน?</label>
+        <textarea id="tradeoff" placeholder="อธิบายข้อแลกเปลี่ยน (trade-off) ที่คุณพบจากการทดสอบ...">${a.tradeoff}</textarea>
+      </div>
+    ` : ""}
+
+    <div class="btnrow footer-nav">
+      <button class="btn-ghost" id="btnBackL3">ย้อนกลับ</button>
+      <button class="btn-primary" id="btnToReflect" ${!res?"disabled":""}>ไปยังขั้นตอน Reflect</button>
+    </div>
+  </div>`;
+}
+
+function renderReflect(){
+  const r = state.reflect;
+  return `
+  <div class="card">
+    <div class="eyebrow">ขั้นตอนที่ 4 · REFLECT — ประเมินตนเอง</div>
+    <h2>สะท้อนการเรียนรู้ของคุณ</h2>
+
+    ${likertField("understand","คุณเข้าใจหลักการทำงานของระบบ LDW มากน้อยเพียงใด?", r.understand)}
+    ${likertField("confidence","คุณมั่นใจเพียงใดว่าจะสามารถปรับพารามิเตอร์ของระบบคล้ายกันนี้ได้ด้วยตนเอง?", r.confidence)}
+    ${likertField("difficulty","ภาระงานในชุดนี้ยากสำหรับคุณเพียงใด?", r.difficulty, ["ง่ายมาก","ง่าย","ยาก","ยากมาก"])}
+
+    <div class="field">
+      <label for="reflectStrategy">คุณใช้กลยุทธ์ใดในการหาค่าพารามิเตอร์ที่เหมาะสม?</label>
+      <textarea id="reflectStrategy" placeholder="เช่น ลองผิดลองถูกทีละค่า, สังเกตรูปแบบจากตาราง...">${r.strategy}</textarea>
+    </div>
+    <div class="field">
+      <label for="reflectMore">มีเรื่องใดเกี่ยวกับระบบ LDW ที่คุณอยากเรียนรู้เพิ่มเติม?</label>
+      <textarea id="reflectMore" placeholder="พิมพ์คำตอบของคุณ...">${r.more}</textarea>
+    </div>
+
+    <div class="btnrow footer-nav">
+      <button class="btn-ghost" id="btnBackApply">ย้อนกลับ</button>
+      <button class="btn-primary" id="btnFinish">ส่งคำตอบและดูรายงานผล</button>
+    </div>
+  </div>`;
+}
+
+function likertField(name, question, current, labels){
+  const opts = labels || ["ไม่เข้าใจเลย","เข้าใจเล็กน้อย","เข้าใจดี","เข้าใจดีมาก"];
+  return `
+  <div class="field">
+    <label>${question}</label>
+    <div class="likert" data-likert="${name}">
+      ${opts.map((o,i)=>`<button type="button" class="${current===(i+1)?"sel":""}" data-val="${i+1}">${o}</button>`).join("")}
+    </div>
+  </div>`;
+}
+
+function renderReport(){
+  const sc = state.scores;
+  const bars = [
+    {label:"SHOW · แสดงสิ่งที่รู้", val:sc.show},
+    {label:"LEARN · เรียนรู้ (เฉลี่ย 3 ภาระงาน)", val:sc.learn},
+    {label:"APPLY · ประยุกต์ใช้", val:sc.apply},
+    {label:"REFLECT · ประเมินตนเอง (ความครบถ้วน)", val:sc.reflect},
+  ];
+  const myPast = getMyHistoryPlaceholder();
+  return `
+  <div class="card">
+    <div class="eyebrow">รายงานผลการทำแบบทดสอบ</div>
+    <h1>สรุปผล — ${state.user}</h1>
+    <p class="small">ระดับชั้น ${state.grade} · หน่วยข้อสอบ "ระบบเตือนเมื่อรถออกนอกเลน" · ${state.finished && state.remaining===0 ? "หมดเวลาทำแบบทดสอบ" : "ส่งคำตอบสำเร็จ"}</p>
+
+    <div class="levelbadge">
+      <span class="lv">ระดับ ${sc.level}</span>
+      <div>
+        <div style="font-weight:700;">${sc.levelName}</div>
+        <div class="small">${sc.levelEn} · คะแนนรวม ${sc.overall}/100</div>
+      </div>
+    </div>
+
+    <h3>คะแนนแยกตามขั้นตอน</h3>
+    ${bars.map(b=>`
+      <div class="barrow">
+        <div class="toprow"><span>${b.label}</span><span style="color:var(--amber);font-weight:700;">${b.val}%</span></div>
+        <div class="bartrack"><div class="barfill" style="width:${b.val}%"></div></div>
+      </div>`).join("")}
+
+    <div class="divider"></div>
+    <h3>รายละเอียดขั้นตอน LEARN</h3>
+    <div class="paramgrid">
+      <div class="metric"><div class="num">${sc.learn1}%</div><div class="lbl">ภาระงาน 1: ปรับความไวกล้อง</div></div>
+      <div class="metric"><div class="num">${sc.learn2}%</div><div class="lbl">ภาระงาน 2: สร้างกฎการตัดสินใจ</div></div>
+      <div class="metric"><div class="num">${sc.learn3}%</div><div class="lbl">ภาระงาน 3: วิเคราะห์ข้อมูล</div></div>
+    </div>
+
+    <div class="divider"></div>
+    <h3>ข้อมูลที่บันทึกไว้</h3>
+    <p class="small">ระบบได้บันทึกวันเวลา ชื่อผู้เข้าสอบ ระดับชั้น คะแนนแต่ละส่วน คะแนนรวม และระดับคุณภาพของคุณไว้ในระบบเก็บข้อมูลของแบบฝึกนี้แล้ว (ดูหมายเหตุด้านล่างเกี่ยวกับการเชื่อมต่อ Google Sheet)</p>
+
+    <div class="btnrow">
+      <button class="btn-ghost" id="btnRestart">ทำแบบทดสอบใหม่</button>
+    </div>
+  </div>`;
+}
+
+function getMyHistoryPlaceholder(){ return null; }
+
+function renderHistory(){
+  return `
+  <div class="card">
+    <div class="eyebrow">รายงานย้อนหลัง</div>
+    <h2>ผลการทำแบบทดสอบทั้งหมดที่บันทึกไว้</h2>
+    <p class="small">ข้อมูลนี้ใช้ระบบจัดเก็บข้อมูลถาวรของแบบฝึกนี้ (แชร์ร่วมกันในชุดข้อสอบเดียวกัน) — ดูหมายเหตุด้านล่างสำหรับการเชื่อมต่อไปยัง Google Sheet จริง</p>
+    <div id="historyContent"><p class="small">กำลังโหลดข้อมูล...</p></div>
+    <div class="btnrow">
+      <button class="btn-ghost" id="btnExportCsv">ส่งออกเป็น CSV</button>
+      <button class="btn-ghost" id="btnBackLogin">กลับหน้าแรก</button>
+    </div>
+  </div>`;
+}
+
+async function loadHistory(){
+  const container = document.getElementById("historyContent");
+  if(!container) return;
+  try{
+    const list = await window.storage.list(STORAGE_PREFIX, true);
+    const keys = (list && list.keys) || [];
+    if(keys.length===0){ container.innerHTML = "<p class='small'>ยังไม่มีข้อมูลการทำแบบทดสอบ</p>"; return; }
+    const records = [];
+    for(const k of keys){
+      try{
+        const r = await window.storage.get(k, true);
+        if(r && r.value) records.push(JSON.parse(r.value));
+      }catch(e){}
+    }
+    records.sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+    window.__ldw_records = records;
+    container.innerHTML = `
+    <div class="historytable">
+    <table>
+      <tr><th>วันเวลา</th><th>ชื่อ</th><th>ระดับชั้น</th><th>Show</th><th>Learn</th><th>Apply</th><th>Reflect</th><th>รวม</th><th>ระดับ</th></tr>
+      ${records.map(r=>`
+        <tr>
+          <td>${new Date(r.timestamp).toLocaleString("th-TH")}</td>
+          <td style="text-align:left;">${r.user}</td>
+          <td>${r.grade}</td>
+          <td>${r.show}</td>
+          <td>${r.learn}</td>
+          <td>${r.apply}</td>
+          <td>${r.reflect}</td>
+          <td style="color:var(--amber);font-weight:700;">${r.overall}</td>
+          <td>${r.level} — ${r.levelName}</td>
+        </tr>`).join("")}
+    </table>
+    </div>`;
+  }catch(e){
+    container.innerHTML = "<p class='small' style='color:var(--red)'>ไม่สามารถโหลดข้อมูลได้</p>";
+  }
+}
+
+function exportCsv(){
+  const records = window.__ldw_records || [];
+  const header = ["timestamp","user","grade","show","learn","learn_task1","learn_task2","learn_task3","apply","reflect","overall","level","levelName"];
+  const lines = [header.join(",")];
+  records.forEach(r=>{
+    lines.push([
+      r.timestamp, r.user, r.grade, r.show, r.learn,
+      r.learn_detail? r.learn_detail.task1:"", r.learn_detail? r.learn_detail.task2:"", r.learn_detail? r.learn_detail.task3:"",
+      r.apply, r.reflect, r.overall, r.level, r.levelName
+    ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(","));
+  });
+  const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ldw_lane_departure_results.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   EVENT HANDLERS
+   ============================================================ */
+function attachHandlers(){
+  // login
+  const btnStart = document.getElementById("btnStart");
+  if(btnStart) btnStart.onclick = ()=>{
+    const name = document.getElementById("inpName").value.trim();
+    const grade = document.getElementById("inpGrade").value;
+    if(!name || !grade){
+      document.getElementById("loginError").textContent = "กรุณาป้อนชื่อและเลือกระดับชั้นก่อนเริ่มทำแบบทดสอบ";
+      return;
+    }
+    state.user = name; state.grade = grade;
+    state.remaining = TOTAL_SECONDS;
+    state.finished = false;
+    startTimer();
+    goto("show");
+  };
+  const btnHistory = document.getElementById("btnHistory");
+  if(btnHistory) btnHistory.onclick = ()=>{ goto("history"); loadHistory(); };
+
+  const btnToggleSettings = document.getElementById("btnToggleSettings");
+  if(btnToggleSettings) btnToggleSettings.onclick = ()=>{ state.showSettings = !state.showSettings; render(); };
+  const webhookUrl = document.getElementById("webhookUrl");
+  if(webhookUrl) webhookUrl.oninput = (e)=>{ state.config.draft = e.target.value; };
+  const btnSaveWebhook = document.getElementById("btnSaveWebhook");
+  if(btnSaveWebhook) btnSaveWebhook.onclick = ()=> saveConfig(state.config.draft.trim());
+  const btnTestWebhook = document.getElementById("btnTestWebhook");
+  if(btnTestWebhook) btnTestWebhook.onclick = testWebhook;
+  const btnClearWebhook = document.getElementById("btnClearWebhook");
+  if(btnClearWebhook) btnClearWebhook.onclick = ()=>{ state.config.draft=""; saveConfig(""); };
+
+  // choice groups (radio/checkbox) generic binding
+  document.querySelectorAll(".choicegroup").forEach(g=>{
+    const name = g.dataset.name;
+    const type = g.dataset.type;
+    g.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("change", ()=>{
+        if(name==="show_a1") state.show.a1 = inp.value;
+        if(name==="show_a4") state.show.a4 = inp.value;
+        if(name==="show_a2"){
+          const val = inp.value;
+          const arr = state.show.a2;
+          if(inp.checked){ if(!arr.includes(val)) arr.push(val); }
+          else{ state.show.a2 = arr.filter(v=>v!==val); }
+        }
+        render();
+      });
+    });
+  });
+
+  // graph points for show a3
+  document.querySelectorAll(".graphpt").forEach(g=>{
+    g.addEventListener("click", ()=>{ state.show.a3 = g.dataset.val; render(); });
+  });
+
+  const btnToLearn = document.getElementById("btnToLearn");
+  if(btnToLearn) btnToLearn.onclick = ()=> goto("learn1");
+
+  // learn1
+  const t1slider = document.getElementById("t1slider");
+  if(t1slider) t1slider.oninput = (e)=>{ state.learn.t1.threshold = parseInt(e.target.value); render(); };
+  document.querySelectorAll("[data-t1test]").forEach(b=>{
+    b.onclick = ()=> t1Test(b.dataset.t1test);
+  });
+  const t1explain = document.getElementById("t1explain");
+  if(t1explain) t1explain.oninput = (e)=>{ state.learn.t1.explain = e.target.value; };
+  const btnBackShow = document.getElementById("btnBackShow");
+  if(btnBackShow) btnBackShow.onclick = ()=> goto("show");
+  const btnToLearn2 = document.getElementById("btnToLearn2");
+  if(btnToLearn2) btnToLearn2.onclick = ()=> goto("learn2");
+
+  // learn2
+  const t2cmp = document.getElementById("t2cmp");
+  if(t2cmp) t2cmp.onchange = (e)=>{ state.learn.t2.comparator = e.target.value; render(); };
+  const t2val = document.getElementById("t2val");
+  if(t2val) t2val.oninput = (e)=>{ state.learn.t2.value = parseFloat(e.target.value)||0; render(); };
+  const btnBackL1 = document.getElementById("btnBackL1");
+  if(btnBackL1) btnBackL1.onclick = ()=> goto("learn1");
+  const btnToLearn3 = document.getElementById("btnToLearn3");
+  if(btnToLearn3) btnToLearn3.onclick = ()=> goto("learn3");
+
+  // learn3
+  const t3fn = document.getElementById("t3fn");
+  if(t3fn) t3fn.oninput = (e)=>{ state.learn.t3.fn = e.target.value; };
+  const t3fp = document.getElementById("t3fp");
+  if(t3fp) t3fp.oninput = (e)=>{ state.learn.t3.fp = e.target.value; };
+  const t3acc = document.getElementById("t3acc");
+  if(t3acc) t3acc.oninput = (e)=>{ state.learn.t3.acc = e.target.value; };
+  const t3worst = document.getElementById("t3worst");
+  if(t3worst) t3worst.onchange = (e)=>{ state.learn.t3.worst = e.target.value; };
+  const btnBackL2 = document.getElementById("btnBackL2");
+  if(btnBackL2) btnBackL2.onclick = ()=> goto("learn2");
+  const btnToApply = document.getElementById("btnToApply");
+  if(btnToApply) btnToApply.onclick = ()=> goto("apply");
+
+  // apply
+  const applySens = document.getElementById("applySens");
+  if(applySens) applySens.oninput = (e)=>{ state.apply.sens = parseInt(e.target.value); document.querySelector("label[for='applySens']"); render(); };
+  const applyDist = document.getElementById("applyDist");
+  if(applyDist) applyDist.oninput = (e)=>{ state.apply.dist = parseFloat(e.target.value); render(); };
+  const applyDelay = document.getElementById("applyDelay");
+  if(applyDelay) applyDelay.oninput = (e)=>{ state.apply.delay = parseFloat(e.target.value); render(); };
+  const btnRunApply = document.getElementById("btnRunApply");
+  if(btnRunApply) btnRunApply.onclick = ()=> runApply();
+  const tradeoff = document.getElementById("tradeoff");
+  if(tradeoff) tradeoff.oninput = (e)=>{ state.apply.tradeoff = e.target.value; };
+  const btnBackL3 = document.getElementById("btnBackL3");
+  if(btnBackL3) btnBackL3.onclick = ()=> goto("learn3");
+  const btnToReflect = document.getElementById("btnToReflect");
+  if(btnToReflect) btnToReflect.onclick = ()=>{ if(state.apply.results) goto("reflect"); };
+
+  // reflect
+  document.querySelectorAll("[data-likert]").forEach(group=>{
+    const name = group.dataset.likert;
+    group.querySelectorAll("button").forEach(btn=>{
+      btn.onclick = ()=>{ state.reflect[name] = parseInt(btn.dataset.val); render(); };
+    });
+  });
+  const reflectStrategy = document.getElementById("reflectStrategy");
+  if(reflectStrategy) reflectStrategy.oninput = (e)=>{ state.reflect.strategy = e.target.value; };
+  const reflectMore = document.getElementById("reflectMore");
+  if(reflectMore) reflectMore.oninput = (e)=>{ state.reflect.more = e.target.value; };
+  const btnBackApply = document.getElementById("btnBackApply");
+  if(btnBackApply) btnBackApply.onclick = ()=> goto("apply");
+  const btnFinish = document.getElementById("btnFinish");
+  if(btnFinish) btnFinish.onclick = ()=> finishTest(false);
+
+  // report
+  const btnViewHistory = document.getElementById("btnViewHistory");
+  if(btnViewHistory) btnViewHistory.onclick = ()=>{ goto("history"); loadHistory(); };
+  const btnRestart = document.getElementById("btnRestart");
+  if(btnRestart) btnRestart.onclick = ()=>{ location.reload(); };
+
+  // history
+  const btnExportCsv = document.getElementById("btnExportCsv");
+  if(btnExportCsv) btnExportCsv.onclick = exportCsv;
+  const btnBackLogin = document.getElementById("btnBackLogin");
+  if(btnBackLogin) btnBackLogin.onclick = ()=> goto("login");
+}
+
+async function initApp(){
+  render();
+  await loadConfig();
+  render();
+}
+initApp();
+</script>
+</body>
+</html>

@@ -118,7 +118,7 @@
     padding:11px 13px;border-radius:var(--radius-sm);font-size:0.95rem;font-family:inherit;
   }
   textarea{resize:vertical;min-height:70px;}
-  input[type=range]{width:100%;accent-color:var(--amber);}
+  input[type=range]{width:100%;accent-color:var(--amber);cursor:pointer;touch-action:none;height:28px;}
   .field{margin-bottom:16px;}
   .btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
   button{
@@ -1105,6 +1105,13 @@ function exportCsv(){
 /* ============================================================
    EVENT HANDLERS
    ============================================================ */
+/* อัปเดตเฉพาะตัวเลขที่แสดงข้างแถบเลื่อน โดยไม่สร้างหน้าจอใหม่ เพื่อให้ลากเมาส์ได้ลื่นไหล */
+function updateSliderLabel(input, text){
+  const field = input.closest(".field");
+  const sp = field ? field.querySelector("label span") : null;
+  if(sp) sp.textContent = text;
+}
+
 function attachHandlers(){
   // login
   const btnStart = document.getElementById("btnStart");
@@ -1164,7 +1171,7 @@ function attachHandlers(){
 
   // learn1
   const t1slider = document.getElementById("t1slider");
-  if(t1slider) t1slider.oninput = (e)=>{ state.learn.t1.threshold = parseInt(e.target.value); render(); };
+  if(t1slider) t1slider.oninput = (e)=>{ state.learn.t1.threshold = parseInt(e.target.value); updateSliderLabel(e.target, e.target.value); };
   document.querySelectorAll("[data-t1test]").forEach(b=>{
     b.onclick = ()=> t1Test(b.dataset.t1test);
   });
@@ -1201,11 +1208,11 @@ function attachHandlers(){
 
   // apply
   const applySens = document.getElementById("applySens");
-  if(applySens) applySens.oninput = (e)=>{ state.apply.sens = parseInt(e.target.value); document.querySelector("label[for='applySens']"); render(); };
+  if(applySens) applySens.oninput = (e)=>{ state.apply.sens = parseInt(e.target.value); updateSliderLabel(e.target, e.target.value); };
   const applyDist = document.getElementById("applyDist");
-  if(applyDist) applyDist.oninput = (e)=>{ state.apply.dist = parseFloat(e.target.value); render(); };
+  if(applyDist) applyDist.oninput = (e)=>{ state.apply.dist = parseFloat(e.target.value); updateSliderLabel(e.target, state.apply.dist.toFixed(2)); };
   const applyDelay = document.getElementById("applyDelay");
-  if(applyDelay) applyDelay.oninput = (e)=>{ state.apply.delay = parseFloat(e.target.value); render(); };
+  if(applyDelay) applyDelay.oninput = (e)=>{ state.apply.delay = parseFloat(e.target.value); updateSliderLabel(e.target, state.apply.delay.toFixed(1)); };
   const btnRunApply = document.getElementById("btnRunApply");
   if(btnRunApply) btnRunApply.onclick = ()=> runApply();
   const tradeoff = document.getElementById("tradeoff");
